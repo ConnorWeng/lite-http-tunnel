@@ -63,6 +63,15 @@ function getAvailableTunnelSocket(host, url) {
   return tunnels[0].socket;
 }
 
+function getAvailableTunnel(host, url) {
+  const socket = getAvailableTunnelSocket(host, url);
+  const tunnels = tunnelSockets.filter((s) => s.socket === socket);
+  if (tunnels.length === 0) {
+    return null;
+  }
+  return tunnels[0];
+}
+
 io.use((socket, next) => {
   const connectHost = socket.handshake.headers.host;
   const pathPrefix = socket.handshake.headers['path-prefix'];
@@ -141,12 +150,13 @@ function getReqHeaders(req) {
 }
 
 app.use('/', (req, res) => {
-  const tunnelSocket = getAvailableTunnelSocket(req.headers.host, req.url);
-  if (!tunnelSocket) {
+  const tunnel = getAvailableTunnel(req.headers.host, req.url);
+  if (!tunnel) {
     res.status(404);
     res.send('Not Found');
     return;
   }
+  let tunnelSocket = tunnel.socket;
   const requestId = uuidV4();
   const tunnelRequest = new TunnelRequest({
     socket: tunnelSocket,
@@ -154,7 +164,7 @@ app.use('/', (req, res) => {
     request: {
       method: req.method,
       headers: getReqHeaders(req),
-      path: req.url,
+      path: tunnel.pathPrefix ? req.url.slice(tunnel.pathPrefix.length) : req.url,
     },
   });
   const onReqError = (e) => {
